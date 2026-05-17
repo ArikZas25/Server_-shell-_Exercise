@@ -82,7 +82,7 @@ class BookServerHandler(BaseHTTPRequestHandler):
         # 4. Filter by Year (Year must be >= the requested year)
         year_filter = query_params.get('year', [None])[0]
         if year_filter:
-            results = [b for b in results if b['printYear'] >= int(year_filter)]
+            results = [b for b in results if b['year'] >= int(year_filter)]
 
         # 5. Filter by Genre (The book's genre list must contain the requested genre)
         genre_filter = query_params.get('genre', [None])[0]
@@ -114,3 +114,43 @@ class BookServerHandler(BaseHTTPRequestHandler):
         else:
             # Use that helper function we discussed earlier to send the error
             self.send_error_response(404, f"Error: no such book with id {book_id}")
+
+    def do_POST(self):
+        global next_id
+
+        if self.path == '/book':
+            connect_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(connect_length)
+            book_data = json.loads(post_data.decode('utf-8'))
+
+            # 1. VALIDATE TITLE DOESN'T ALREADY EXIST (Case-Insensitive)
+            incoming_title_lower = book_data['title'].lower()
+            for existing_book in books_db.values():
+                if existing_book['title'].lower() == incoming_title_lower:
+                    self.send_error_response(409,
+                                             f"Error: Book with the title [{book_data['title']}] already exists in the system")
+                    return
+
+            # 2. VALIDATE YEAR RANGE (Using 'year' instead of 'printYear')
+            if not (1940 <= book_data['year'] <= 2100):
+                self.send_error_response(409,
+                                         f"Error: Can't create new Book that its year [{book_data['year']}] is not in the accepted range [1940 -> 2100]")
+                return
+
+            # 3. VALIDATE PRICE IS POSITIVE
+            if book_data['price'] <= 0:
+                self.send_error_response(409, "Error: Can't create new Book with negative price")
+                return
+
+            # SUCCESS
+            new_id = next_id
+            book_data['id'] = new_id
+            books_db[new_id] = book_data
+            next_id += 1
+
+            # SEND RESPONSE
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"result": new_id}
+            self.wfile.write(json.dumps(response).encode())
