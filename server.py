@@ -206,12 +206,14 @@ class BookServerHandler(BaseHTTPRequestHandler):
                 self.send_error_response(409, "Error: price must be positive")
                 return
 
+                # Note how this block is shifted to the left
+            old_price = books_db[book_id]['price']
             books_db[book_id]['price'] = new_price
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"result": "OK"}).encode())
+            self.wfile.write(json.dumps({"result": old_price}).encode())
 
     def do_DELETE(self):
         parsed_url = urlparse(self.path)
@@ -230,7 +232,7 @@ class BookServerHandler(BaseHTTPRequestHandler):
                 return
 
             if book_id not in books_db:
-                self.send_error_response(404, f"Error: no such Book with id {book_id}")
+                self.send_error_response(404, f"Error: no such book with id {book_id}")
                 return
 
             del books_db[book_id]
@@ -238,7 +240,8 @@ class BookServerHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"result": "OK"}).encode())
+            # Return the deleted book_id instead of "OK"
+            self.wfile.write(json.dumps({"result": book_id}).encode())
 
 
 def run_server():
